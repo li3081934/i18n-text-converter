@@ -3,11 +3,23 @@
   "displayName": "i18n Text Converter",
   "description": "Convert selected text to i18n markers with right-click context menu",
   "version": "0.0.1",
+  "publisher": "local",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/i18n-text-converter.git"
+  },
   "engines": {
     "vscode": "^1.102.0"
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "translation",
+    "localization",
+    "text converter"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
