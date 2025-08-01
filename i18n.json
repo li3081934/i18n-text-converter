@@ -1,0 +1,32 @@
+{
+  "hello": "Hello",
+  "world": "World",
+  "helloWorld": "Hello World",
+  "welcome": "Welcome",
+  "goodbye": "Goodbye",
+  "save": "Save",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "error": "Error",
+  "success": "Success",
+  "common": {
+    "greeting": "你好",
+    "farewell": "再见",
+    "thanks": "谢谢"
+  },
+  "buttons": {
+    "submit": "提交",
+    "reset": "重置",
+    "close": "关闭"
+  },
+  "messages": {
+    "error": {
+      "network": "网络错误",
+      "timeout": "请求超时"
+    },
+    "success": {
+      "saved": "保存成功",
+      "deleted": "删除成功"
+    }
+  }
+}

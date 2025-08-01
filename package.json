@@ -1,0 +1,66 @@
+{
+  "name": "i18n-text-converter",
+  "displayName": "i18n Text Converter",
+  "description": "Convert selected text to i18n markers with right-click context menu",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.102.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "i18n-text-converter.convertToI18n",
+        "title": "Convert to i18n"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "i18n-text-converter.convertToI18n",
+          "when": "editorHasSelection",
+          "group": "i18n"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "i18n Text Converter",
+      "properties": {
+        "i18nConverter.jsonFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the i18n JSON file (relative to workspace root)"
+        },
+        "i18nConverter.outputTemplate": {
+          "type": "string",
+          "default": "t('@i18nKey')",
+          "description": "Output template for i18n function call. Use @i18nKey as placeholder for the key."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.102.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
