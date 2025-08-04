@@ -5,7 +5,8 @@ A Visual Studio Code extension that allows you to easily convert selected text t
 ## Features
 
 - **Right-click context menu**: Select any text in your editor and right-click to access the "Convert to i18n" option
-- **Smart key matching**: Automatically searches for existing translations in your JSON file
+- **Smart fuzzy matching**: Automatically searches for existing translations using fuzzy matching
+- **Multi-match selection**: When multiple matches are found, presents a selection dialog
 - **Custom key input**: When no match is found, prompts you to enter a custom i18n key
 - **JSON file auto-update**: Automatically adds new key-value pairs to your i18n JSON file
 - **Nested key support**: Supports nested keys like `common.greeting` or `buttons.primary.submit`
@@ -14,40 +15,57 @@ A Visual Studio Code extension that allows you to easily convert selected text t
 
 ## Usage
 
-### For Existing Translations
-1. Select text that exists in your i18n JSON file (e.g., "你好")
+### Single Match (Automatic)
+1. Select text that has exactly one match in your i18n JSON file
 2. Right-click and select "Convert to i18n"
-3. Text is automatically replaced with the corresponding i18n call (e.g., `t('common.greeting')`)
+3. Text is automatically replaced with the corresponding i18n call
 
-### For New Translations
-1. Select text that doesn't exist in your i18n JSON file (e.g., "新的文本")
+### Multiple Matches (Selection Dialog)
+1. Select text that matches multiple entries (e.g., "保存" matches "保存", "保存全部", "保存成功")
+2. Right-click and select "Convert to i18n"
+3. A selection dialog appears showing all matches:
+   - `buttons.save`: "保存"
+   - `buttons.saveAll`: "保存全部"
+   - `messages.success.saved`: "保存成功"
+4. Choose the most appropriate match
+5. Text is replaced with the selected i18n call
+
+### New Translations (Custom Input)
+1. Select text that doesn't exist in your i18n JSON file
 2. Right-click and select "Convert to i18n"
 3. An input box appears with a suggested key name
-4. Enter your desired key (supports nested keys like `common.newText`)
-5. The JSON file is automatically updated with the new key-value pair
+4. Enter your desired key (supports nested keys)
+5. The JSON file is automatically updated
 6. Text is replaced with the formatted i18n call
+
+## Fuzzy Matching Rules
+
+1. **Exact Match** (Highest Priority): Perfect text match
+2. **Contains Match**: Selected text contains or is contained in JSON values
+3. **Case Insensitive**: Matching ignores case differences
 
 ## Examples
 
-### Existing Translation
-- Selected text: `"你好"` (exists as `common.greeting` in JSON)
-- Result: `t('common.greeting')`
-- JSON file: No changes
+### Single Exact Match
+- Selected: `"网络错误"`
+- Found: `messages.error.network: "网络错误"`
+- Result: `t('messages.error.network')` (automatic)
 
-### New Translation
-- Selected text: `"登录成功"`
-- Input key: `auth.success.login`
-- Result: `t('auth.success.login')`
-- JSON file updated:
-  ```json
-  {
-    "auth": {
-      "success": {
-        "login": "登录成功"
-      }
-    }
-  }
-  ```
+### Multiple Fuzzy Matches
+- Selected: `"保存"`
+- Found multiple matches:
+  - `buttons.save: "保存"`
+  - `buttons.saveAll: "保存全部"`
+  - `messages.success.saved: "保存成功"`
+- Action: Selection dialog appears
+- Result: User chooses → `t('buttons.save')`
+
+### No Match
+- Selected: `"新功能"`
+- Found: No matches
+- Action: Input dialog with suggested key `xinGongNeng`
+- User inputs: `features.newFeature`
+- Result: JSON updated + `t('features.newFeature')`
 
 ## Requirements
 

@@ -2,7 +2,7 @@
   "name": "i18n-text-converter",
   "displayName": "i18n Text Converter",
   "description": "Convert selected text to i18n markers with right-click context menu",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "local",
   "repository": {
     "type": "git",

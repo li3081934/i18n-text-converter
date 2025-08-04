@@ -12,21 +12,38 @@
   "common": {
     "greeting": "你好",
     "farewell": "再见",
-    "thanks": "谢谢"
+    "thanks": "谢谢",
+    "hello": "你好世界",
+    "welcome": "欢迎"
   },
   "buttons": {
     "submit": "提交",
     "reset": "重置",
-    "close": "关闭"
+    "close": "关闭",
+    "save": "保存",
+    "saveAll": "保存全部"
   },
   "messages": {
     "error": {
       "network": "网络错误",
-      "timeout": "请求超时"
+      "timeout": "请求超时",
+      "serverError": "服务器错误"
     },
     "success": {
       "saved": "保存成功",
-      "deleted": "删除成功"
+      "deleted": "删除成功",
+      "updated": "更新成功"
+    },
+    "info": {
+      "loading": "加载中...",
+      "processing": "处理中...",
+      "uploading": "上传中..."
     }
+  },
+  "auth": {
+    "login": "登录",
+    "logout": "退出登录",
+    "register": "注册",
+    "forgotPassword": "忘记密码"
   }
 }
