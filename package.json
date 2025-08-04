@@ -2,7 +2,7 @@
   "name": "i18n-text-converter",
   "displayName": "i18n Text Converter",
   "description": "Convert selected text to i18n markers with right-click context menu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "local",
   "repository": {
     "type": "git",
@@ -46,12 +46,14 @@
         "i18nConverter.jsonFilePath": {
           "type": "string",
           "default": "",
-          "description": "Path to the i18n JSON file (relative to workspace root)"
+          "description": "Path to the i18n JSON file (relative to workspace root)",
+          "scope": "resource"
         },
         "i18nConverter.outputTemplate": {
           "type": "string",
           "default": "t('@i18nKey')",
-          "description": "Output template for i18n function call. Use @i18nKey as placeholder for the key."
+          "description": "Output template for i18n function call. Use @i18nKey as placeholder for the key.",
+          "scope": "resource"
         }
       }
     }

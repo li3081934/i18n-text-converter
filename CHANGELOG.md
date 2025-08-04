@@ -4,6 +4,13 @@ All notable changes to the "i18n-text-converter" extension will be documented in
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+# Change Log
+
+## [0.1.1] - 2025-08-04
+### Changed
+- Changed configuration scope from global to project-level (resource scope)
+- Both `i18nConverter.jsonFilePath` and `i18nConverter.outputTemplate` now support workspace-specific settings
+
 ## [0.1.0] - 2025-08-04
 
 ### Added
