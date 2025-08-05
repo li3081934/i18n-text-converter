@@ -156,12 +156,13 @@ function convertSelectedTextToI18n(): void {
 	let i18nKey: string;
 	let translationEntry: string;
 
-	// Try to find the selected text in the existing JSON data (fuzzy matching)
+	// Try to find the selected text in the existing JSON data
 	const matchingResults = findKeyPathsByValue(i18nData, selectedText);
 
-	if (matchingResults.length === 1) {
-		// Single match found, use it directly
-		const match = matchingResults[0];
+	// Handle exact matches first
+	if (matchingResults.exact.length === 1) {
+		// Single exact match found, use it directly
+		const match = matchingResults.exact[0];
 		i18nKey = match.path;
 		translationEntry = `Found existing key: ${match.path} = "${match.value}"`;
 		console.log(`Found existing translation: ${match.path} = "${match.value}"`);
@@ -177,17 +178,40 @@ function convertSelectedTextToI18n(): void {
 			vscode.env.clipboard.writeText(translationEntry);
 			vscode.window.showInformationMessage('Translation info copied to clipboard');
 		});
-	} else if (matchingResults.length > 1) {
-		// Multiple matches found, let user choose
-		const quickPickItems = matchingResults.map(result => ({
-			label: result.path,
-			description: result.value,
-			detail: `Key: ${result.path}`,
-			result: result
-		}));
+	} else if (matchingResults.exact.length > 1 || matchingResults.fuzzy.length > 0) {
+		// Multiple exact matches or fuzzy matches found, let user choose
+		const quickPickItems: vscode.QuickPickItem[] = [];
+		
+		// Add exact matches first
+		matchingResults.exact.forEach(result => {
+			quickPickItems.push({
+				label: `🎯 ${result.path}`,
+				description: result.value,
+				detail: `Exact match - Key: ${result.path}`,
+				picked: false
+			});
+		});
+		
+		// Add fuzzy matches
+		matchingResults.fuzzy.forEach(result => {
+			quickPickItems.push({
+				label: `🔍 ${result.path}`,
+				description: result.value,
+				detail: `Fuzzy match - Key: ${result.path}`,
+				picked: false
+			});
+		});
+		
+		// Add custom input option
+		quickPickItems.push({
+			label: '✏️ Create custom key',
+			description: 'Input your own i18n key',
+			detail: 'Create a new translation key',
+			picked: false
+		});
 
 		vscode.window.showQuickPick(quickPickItems, {
-			placeHolder: 'Multiple matches found. Select the i18n key to use:',
+			placeHolder: 'Select an i18n key or create a custom one:',
 			matchOnDescription: true,
 			matchOnDetail: true
 		}).then(selectedItem => {
@@ -196,26 +220,81 @@ function convertSelectedTextToI18n(): void {
 				return;
 			}
 
-			// Use the selected match
-			const selectedMatch = selectedItem.result;
-			i18nKey = selectedMatch.path;
-			translationEntry = `Selected existing key: ${selectedMatch.path} = "${selectedMatch.value}"`;
-			console.log(`Selected existing translation: ${selectedMatch.path} = "${selectedMatch.value}"`);
-			
-			// Generate i18n function call using custom template
-			const i18nCall = generateI18nCall(i18nKey);
-
-			// Replace selected text with i18n call
-			editor.edit(editBuilder => {
-				editBuilder.replace(selection, i18nCall);
-			}).then(() => {
-				vscode.window.showInformationMessage(`Converted to selected i18n key: ${i18nCall}`);
-				vscode.env.clipboard.writeText(translationEntry);
-				vscode.window.showInformationMessage('Translation info copied to clipboard');
-			});
+			// Check if user selected the custom input option
+			if (selectedItem.label === '✏️ Create custom key') {
+				// Show input box for custom key
+				const suggestedKey = generateI18nKey(selectedText);
+				
+				vscode.window.showInputBox({
+					prompt: 'Enter i18n key for the selected text',
+					value: suggestedKey,
+					placeHolder: 'e.g., common.greeting or buttons.submit'
+				}).then(userInputKey => {
+					if (!userInputKey) {
+						return;
+					}
+					
+					i18nKey = userInputKey.trim();
+					
+					// Update the JSON file with the new key-value pair
+					updateI18nJsonFile(i18nKey, selectedText).then(success => {
+						if (success) {
+							const i18nCall = generateI18nCall(i18nKey);
+							editor.edit(editBuilder => {
+								editBuilder.replace(selection, i18nCall);
+							}).then(() => {
+								vscode.window.showInformationMessage(`Converted to new i18n key: ${i18nCall}`);
+								vscode.window.showInformationMessage('JSON file updated successfully');
+								
+								translationEntry = `"${i18nKey}": "${selectedText}"`;
+								vscode.env.clipboard.writeText(translationEntry);
+							});
+						}
+					});
+				});
+			} else {
+				// User selected an existing key
+				// Extract the path from the label (remove emoji and spaces)
+				let selectedPath = selectedItem.label;
+				
+				// Remove emoji prefixes more reliably
+				if (selectedPath.startsWith('🎯 ')) {
+					selectedPath = selectedPath.substring(3); // Remove "🎯 "
+				} else if (selectedPath.startsWith('🔍 ')) {
+					selectedPath = selectedPath.substring(3); // Remove "🔍 "
+				}
+				
+				console.log('Selected path:', selectedPath);
+				console.log('Original label:', selectedItem.label);
+				
+				// Find the corresponding match result
+				const allMatches = [...matchingResults.exact, ...matchingResults.fuzzy];
+				const selectedMatch = allMatches.find(match => match.path === selectedPath);
+				
+				console.log('All matches:', allMatches.map(m => m.path));
+				console.log('Selected match:', selectedMatch);
+				
+				if (selectedMatch) {
+					i18nKey = selectedMatch.path;
+					translationEntry = `Selected existing key: ${selectedMatch.path} = "${selectedMatch.value}"`;
+					console.log(`Selected existing translation: ${selectedMatch.path} = "${selectedMatch.value}"`);
+					
+					const i18nCall = generateI18nCall(i18nKey);
+					editor.edit(editBuilder => {
+						editBuilder.replace(selection, i18nCall);
+					}).then(() => {
+						vscode.window.showInformationMessage(`Converted to selected i18n key: ${i18nCall}`);
+						vscode.env.clipboard.writeText(translationEntry);
+						vscode.window.showInformationMessage('Translation info copied to clipboard');
+					});
+				} else {
+					vscode.window.showErrorMessage(`Could not find match for selected path: ${selectedPath}`);
+					console.error('Failed to find selected match. Available paths:', allMatches.map(m => m.path));
+				}
+			}
 		});
 	} else {
-		// No existing key found, prompt user for custom key
+		// No matches found, prompt user for custom key
 		const suggestedKey = generateI18nKey(selectedText);
 		
 		vscode.window.showInputBox({
@@ -254,20 +333,24 @@ function convertSelectedTextToI18n(): void {
 }
 
 /**
- * Searches for values in the i18n JSON object that match the search text (fuzzy matching)
+ * Searches for values in the i18n JSON object that match the search text
  * @param obj - The JSON object to search in
  * @param searchValue - The value to search for
  * @param currentPath - The current path being built (used for recursion)
- * @returns Array of matching key paths and values
+ * @returns Object with exact and fuzzy matches
  */
-function findKeyPathsByValue(obj: any, searchValue: string, currentPath: string = ''): Array<{path: string, value: string}> {
-	const results: Array<{path: string, value: string}> = [];
+function findKeyPathsByValue(obj: any, searchValue: string, currentPath: string = ''): {
+	exact: Array<{path: string, value: string}>,
+	fuzzy: Array<{path: string, value: string}>
+} {
+	const exactMatches: Array<{path: string, value: string}> = [];
+	const fuzzyMatches: Array<{path: string, value: string}> = [];
 	
 	if (!obj || typeof obj !== 'object') {
-		return results;
+		return { exact: exactMatches, fuzzy: fuzzyMatches };
 	}
 
-	// Normalize search value for fuzzy matching
+	// Normalize search value for comparison
 	const normalizedSearch = searchValue.toLowerCase().trim();
 
 	for (const key in obj) {
@@ -275,29 +358,30 @@ function findKeyPathsByValue(obj: any, searchValue: string, currentPath: string 
 			const value = obj[key];
 			const newPath = currentPath ? `${currentPath}.${key}` : key;
 
-			// Check if current value matches the search value (fuzzy matching)
+			// Check if current value matches the search value
 			if (typeof value === 'string') {
 				const normalizedValue = value.toLowerCase().trim();
 				
-				// Exact match has highest priority
+				// Exact match
 				if (normalizedValue === normalizedSearch) {
-					results.unshift({path: newPath, value: value}); // Add to beginning for priority
+					exactMatches.push({path: newPath, value: value});
 				}
-				// Fuzzy match: contains the search text
+				// Fuzzy match: contains the search text (but not exact)
 				else if (normalizedValue.includes(normalizedSearch) || normalizedSearch.includes(normalizedValue)) {
-					results.push({path: newPath, value: value});
+					fuzzyMatches.push({path: newPath, value: value});
 				}
 			}
 
 			// If value is an object, search recursively
 			if (typeof value === 'object' && value !== null) {
 				const nestedResults = findKeyPathsByValue(value, searchValue, newPath);
-				results.push(...nestedResults);
+				exactMatches.push(...nestedResults.exact);
+				fuzzyMatches.push(...nestedResults.fuzzy);
 			}
 		}
 	}
 
-	return results;
+	return { exact: exactMatches, fuzzy: fuzzyMatches };
 }
 
 /**

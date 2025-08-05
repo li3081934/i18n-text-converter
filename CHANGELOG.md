@@ -6,6 +6,21 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 # Change Log
 
+## [0.1.3] - 2025-08-05
+### Fixed
+- Fixed bug where selecting fuzzy match options had no effect
+- Improved emoji handling in QuickPick selection parsing
+- Added debug logging for better troubleshooting
+- Enhanced error handling for unmatched selections
+
+## [0.1.2] - 2025-08-05
+### Enhanced
+- Optimized text matching strategy with intelligent priority handling
+- Exact matches are now processed immediately without user intervention
+- Fuzzy matches display in an enhanced selection interface with visual indicators (🎯 for exact, 🔍 for fuzzy)
+- Added custom key creation option (✏️) directly in the selection menu
+- Improved user experience with clear visual distinction between match types
+
 ## [0.1.1] - 2025-08-04
 ### Changed
 - Changed configuration scope from global to project-level (resource scope)
