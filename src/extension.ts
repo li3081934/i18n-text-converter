@@ -102,6 +102,42 @@ async function updateI18nJsonFile(key: string, value: string): Promise<boolean> 
 		const keyParts = key.split('.');
 		let currentObj = jsonData;
 
+		// Navigate the nested structure to check if key exists
+		let keyExists = false;
+		let existingValue = '';
+		let tempObj = jsonData;
+		
+		for (let i = 0; i < keyParts.length; i++) {
+			const part = keyParts[i];
+			if (tempObj && typeof tempObj === 'object' && tempObj.hasOwnProperty(part)) {
+				if (i === keyParts.length - 1) {
+					// This is the final key
+					keyExists = true;
+					existingValue = tempObj[part];
+					break;
+				} else {
+					tempObj = tempObj[part];
+				}
+			} else {
+				break;
+			}
+		}
+
+		// If key exists, ask user for confirmation to overwrite
+		if (keyExists) {
+			const result = await vscode.window.showWarningMessage(
+				`Key "${key}" already exists with value: "${existingValue}"\n\nDo you want to overwrite it with: "${value}"?`,
+				{ modal: true },
+				'Yes, Overwrite',
+				'No, Cancel'
+			);
+
+			if (result !== 'Yes, Overwrite') {
+				console.log('User cancelled overwrite operation');
+				return false;
+			}
+		}
+
 		// Navigate/create the nested structure
 		for (let i = 0; i < keyParts.length - 1; i++) {
 			const part = keyParts[i];
@@ -122,7 +158,8 @@ async function updateI18nJsonFile(key: string, value: string): Promise<boolean> 
 		// Update the global i18nData variable
 		i18nData = jsonData;
 
-		console.log(`Updated i18n file: ${key} = "${value}"`);
+		const action = keyExists ? 'Overwritten' : 'Added';
+		console.log(`${action} i18n file: ${key} = "${value}"`);
 		return true;
 
 	} catch (error) {

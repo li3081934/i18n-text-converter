@@ -6,6 +6,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 # Change Log
 
+## [0.1.4] - 2025-08-08
+### Added
+- Duplicate key detection with overwrite confirmation dialog
+- When updating JSON file with existing key, prompts user to confirm overwrite
+- Modal dialog shows existing and new values for comparison
+- User can choose to overwrite or cancel the operation
+
 ## [0.1.3] - 2025-08-05
 ### Fixed
 - Fixed bug where selecting fuzzy match options had no effect
