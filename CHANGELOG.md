@@ -6,6 +6,34 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 # Change Log
 
+## [0.3.1] - 2025-08-08
+### Improved
+- Enhanced JSON parsing with robust error handling
+- Default to empty JSON object when file is empty, corrupted, or contains invalid JSON
+- Added parsing error warnings with graceful fallback
+- Improved stability when working with malformed JSON files
+- Better type checking for parsed JSON data (ensures object type, not array)
+
+## [0.3.0] - 2025-08-08
+### Added - Multi-Language File Support with AI Translation
+- 🌍 **Multi-file Synchronization**: New `i18nDirectory` configuration for managing multiple language files
+- 🤖 **Automatic Translation**: Integrates Copilot API to automatically translate text to different languages
+- 📁 **Smart File Detection**: Automatically detects JSON files in configured directory (e.g., en.json, zh.json, fr.json)
+- 🔄 **Batch Processing**: Updates all language files simultaneously with progress indicator
+- 🎯 **Language Mapping**: Maps filename to language (en.json → English, zh.json → Chinese, etc.)
+- ⚡ **Fallback Support**: Falls back to single file mode if directory not configured
+
+### Configuration
+- Added `i18nConverter.i18nDirectory` setting for specifying i18n files directory
+- Supports both single file (`jsonFilePath`) and multi-file (`i18nDirectory`) workflows
+- Files should be named by language code (e.g., en.json, zh.json, fr.json, de.json)
+
+### Workflow Enhancement
+- When adding new i18n key, automatically translates to all configured languages
+- Progress indicator shows translation and file update progress
+- Improved error handling for translation failures
+- Cancellation support for long operations
+
 ## [0.1.4] - 2025-08-08
 ### Added
 - Duplicate key detection with overwrite confirmation dialog

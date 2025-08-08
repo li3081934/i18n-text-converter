@@ -54,7 +54,15 @@ function loadI18nJsonFile(): void {
 
 		// Read and parse JSON file
 		const fileContent = fs.readFileSync(absolutePath, 'utf8');
-		i18nData = JSON.parse(fileContent);
+		try {
+			// Try to parse JSON, fallback to empty object if parsing fails
+			const parsed = JSON.parse(fileContent);
+			i18nData = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+		} catch (parseError) {
+			console.warn(`JSON parsing failed for ${absolutePath}, using empty object:`, parseError);
+			i18nData = {};
+			vscode.window.showWarningMessage(`Invalid JSON format in ${absolutePath}, using empty data`);
+		}
 		
 		console.log('i18n JSON file loaded successfully:', absolutePath);
 		console.log('Keys found:', Object.keys(i18nData).length);
@@ -74,9 +82,10 @@ function loadI18nJsonFile(): void {
 async function updateI18nJsonFile(key: string, value: string): Promise<boolean> {
 	const config = vscode.workspace.getConfiguration('i18nConverter');
 	const jsonFilePath = config.get<string>('jsonFilePath', '');
+	const i18nDirectory = config.get<string>('i18nDirectory', '');
 
-	if (!jsonFilePath) {
-		vscode.window.showErrorMessage('No i18n JSON file path configured');
+	if (!jsonFilePath && !i18nDirectory) {
+		vscode.window.showErrorMessage('No i18n JSON file path or directory configured');
 		return false;
 	}
 
@@ -87,7 +96,25 @@ async function updateI18nJsonFile(key: string, value: string): Promise<boolean> 
 		return false;
 	}
 
-	// Build absolute path to JSON file
+	try {
+		// If i18nDirectory is configured, update all JSON files in the directory
+		if (i18nDirectory) {
+			return await updateMultipleI18nFiles(key, value, i18nDirectory, workspaceFolder);
+		} else {
+			// Fallback to single file update
+			return await updateSingleI18nFile(key, value, jsonFilePath, workspaceFolder);
+		}
+	} catch (error) {
+		vscode.window.showErrorMessage(`Error updating i18n files: ${error}`);
+		console.error('Error updating i18n files:', error);
+		return false;
+	}
+}
+
+/**
+ * Updates a single i18n JSON file
+ */
+async function updateSingleI18nFile(key: string, value: string, jsonFilePath: string, workspaceFolder: vscode.WorkspaceFolder): Promise<boolean> {
 	const absolutePath = path.join(workspaceFolder.uri.fsPath, jsonFilePath);
 
 	try {
@@ -95,38 +122,21 @@ async function updateI18nJsonFile(key: string, value: string): Promise<boolean> 
 		let jsonData: any = {};
 		if (fs.existsSync(absolutePath)) {
 			const fileContent = fs.readFileSync(absolutePath, 'utf8');
-			jsonData = JSON.parse(fileContent);
-		}
-
-		// Split the key by dots to handle nested keys
-		const keyParts = key.split('.');
-		let currentObj = jsonData;
-
-		// Navigate the nested structure to check if key exists
-		let keyExists = false;
-		let existingValue = '';
-		let tempObj = jsonData;
-		
-		for (let i = 0; i < keyParts.length; i++) {
-			const part = keyParts[i];
-			if (tempObj && typeof tempObj === 'object' && tempObj.hasOwnProperty(part)) {
-				if (i === keyParts.length - 1) {
-					// This is the final key
-					keyExists = true;
-					existingValue = tempObj[part];
-					break;
-				} else {
-					tempObj = tempObj[part];
-				}
-			} else {
-				break;
+			try {
+				// Try to parse JSON, fallback to empty object if parsing fails
+				const parsed = JSON.parse(fileContent);
+				jsonData = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+			} catch (parseError) {
+				console.warn(`JSON parsing failed for ${absolutePath}, using empty object:`, parseError);
+				jsonData = {};
 			}
 		}
 
-		// If key exists, ask user for confirmation to overwrite
-		if (keyExists) {
+		// Check if key exists and handle overwrite confirmation
+		const keyExists = await checkKeyExists(jsonData, key);
+		if (keyExists.exists) {
 			const result = await vscode.window.showWarningMessage(
-				`Key "${key}" already exists with value: "${existingValue}"\n\nDo you want to overwrite it with: "${value}"?`,
+				`Key "${key}" already exists with value: "${keyExists.value}"\n\nDo you want to overwrite it with: "${value}"?`,
 				{ modal: true },
 				'Yes, Overwrite',
 				'No, Cancel'
@@ -138,35 +148,252 @@ async function updateI18nJsonFile(key: string, value: string): Promise<boolean> 
 			}
 		}
 
-		// Navigate/create the nested structure
-		for (let i = 0; i < keyParts.length - 1; i++) {
-			const part = keyParts[i];
-			if (!currentObj[part] || typeof currentObj[part] !== 'object') {
-				currentObj[part] = {};
-			}
-			currentObj = currentObj[part];
-		}
+		// Update the JSON data
+		updateJsonData(jsonData, key, value);
 
-		// Set the final value
-		const finalKey = keyParts[keyParts.length - 1];
-		currentObj[finalKey] = value;
-
-		// Write back to file with proper formatting
+		// Write back to file
 		const updatedContent = JSON.stringify(jsonData, null, 2);
 		fs.writeFileSync(absolutePath, updatedContent, 'utf8');
 
 		// Update the global i18nData variable
 		i18nData = jsonData;
 
-		const action = keyExists ? 'Overwritten' : 'Added';
+		const action = keyExists.exists ? 'Overwritten' : 'Added';
 		console.log(`${action} i18n file: ${key} = "${value}"`);
 		return true;
 
 	} catch (error) {
-		vscode.window.showErrorMessage(`Error updating i18n JSON file: ${error}`);
-		console.error('Error updating i18n JSON file:', error);
+		console.error('Error updating single i18n file:', error);
+		throw error;
+	}
+}
+
+/**
+ * Updates multiple i18n JSON files with translations
+ */
+async function updateMultipleI18nFiles(key: string, originalValue: string, i18nDirectory: string, workspaceFolder: vscode.WorkspaceFolder): Promise<boolean> {
+	const directoryPath = path.join(workspaceFolder.uri.fsPath, i18nDirectory);
+
+	if (!fs.existsSync(directoryPath)) {
+		vscode.window.showErrorMessage(`i18n directory not found: ${directoryPath}`);
 		return false;
 	}
+
+	// Get all JSON files in the directory
+	const files = fs.readdirSync(directoryPath).filter(file => file.endsWith('.json'));
+	
+	if (files.length === 0) {
+		vscode.window.showErrorMessage(`No JSON files found in directory: ${directoryPath}`);
+		return false;
+	}
+
+	console.log(`Found ${files.length} JSON files to update:`, files);
+
+	// Show progress for multiple file updates
+	return await vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: 'Updating i18n files...',
+		cancellable: true
+	}, async (progress, token) => {
+		const totalFiles = files.length;
+		let processedFiles = 0;
+
+		for (const file of files) {
+			if (token.isCancellationRequested) {
+				return false;
+			}
+
+			const fileName = path.parse(file).name; // Get filename without extension
+			const filePath = path.join(directoryPath, file);
+
+			progress.report({
+				increment: (processedFiles / totalFiles) * 100,
+				message: `Processing ${file}...`
+			});
+
+			try {
+				// Read current JSON content or create empty object
+				let jsonData: any = {};
+				if (fs.existsSync(filePath)) {
+					const fileContent = fs.readFileSync(filePath, 'utf8');
+					try {
+						// Try to parse JSON, fallback to empty object if parsing fails or empty
+						const parsed = JSON.parse(fileContent);
+						jsonData = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+					} catch (parseError) {
+						console.warn(`JSON parsing failed for ${filePath}, using empty object:`, parseError);
+						jsonData = {};
+					}
+				}
+
+				// Check if key exists (only for the first file to avoid multiple prompts)
+				if (processedFiles === 0) {
+					const keyExists = await checkKeyExists(jsonData, key);
+					if (keyExists.exists) {
+						const result = await vscode.window.showWarningMessage(
+							`Key "${key}" already exists in multiple files.\n\nDo you want to overwrite in all files?`,
+							{ modal: true },
+							'Yes, Overwrite All',
+							'No, Cancel'
+						);
+
+						if (result !== 'Yes, Overwrite All') {
+							console.log('User cancelled overwrite operation');
+							return false;
+						}
+					}
+				}
+
+				// Translate the text for this language
+				let translatedValue = originalValue;
+				if (fileName !== 'template' && fileName !== 'default') {
+					const translation = await translateWithCopilot(originalValue, fileName);
+					if (translation) {
+						translatedValue = translation;
+					} else {
+						// If translation fails, use original value
+						console.warn(`Translation failed for ${fileName}, using original value`);
+					}
+				}
+
+				// Update the JSON data
+				updateJsonData(jsonData, key, translatedValue);
+
+				// Write back to file
+				const updatedContent = JSON.stringify(jsonData, null, 2);
+				fs.writeFileSync(filePath, updatedContent, 'utf8');
+
+				console.log(`Updated ${file}: ${key} = "${translatedValue}"`);
+				processedFiles++;
+
+			} catch (error) {
+				console.error(`Error updating ${file}:`, error);
+				vscode.window.showWarningMessage(`Failed to update ${file}: ${error}`);
+			}
+		}
+
+		progress.report({ increment: 100, message: 'Complete!' });
+
+		// Reload the main i18n data if there's a main file
+		const config = vscode.workspace.getConfiguration('i18nConverter');
+		const jsonFilePath = config.get<string>('jsonFilePath', '');
+		if (jsonFilePath) {
+			loadI18nJsonFile();
+		}
+
+		vscode.window.showInformationMessage(`Successfully updated ${processedFiles} i18n files`);
+		return true;
+	});
+}
+
+/**
+ * Translates text using Copilot API based on target language
+ */
+async function translateWithCopilot(text: string, targetLanguage: string): Promise<string | null> {
+	try {
+		// Get available Copilot models
+		const models = await vscode.lm.selectChatModels({
+			vendor: 'copilot'
+		});
+
+		if (models.length === 0) {
+			console.warn('No Copilot models available for translation');
+			return null;
+		}
+
+		// Map common language codes to full language names
+		const languageMap: { [key: string]: string } = {
+			'en': 'English',
+			'zh': 'Chinese',
+			'zh-cn': 'Chinese (Simplified)',
+			'zh-tw': 'Chinese (Traditional)',
+			'es': 'Spanish',
+			'fr': 'French',
+			'de': 'German',
+			'ja': 'Japanese',
+			'ko': 'Korean',
+			'ru': 'Russian',
+			'it': 'Italian',
+			'pt': 'Portuguese',
+			'ar': 'Arabic',
+			'hi': 'Hindi',
+			'th': 'Thai',
+			'vi': 'Vietnamese'
+		};
+
+		const targetLanguageName = languageMap[targetLanguage.toLowerCase()] || targetLanguage;
+
+		// Create the translation prompt
+		const messages: vscode.LanguageModelChatMessage[] = [
+			vscode.LanguageModelChatMessage.User(`Please translate the following text to ${targetLanguageName}. Only return the translated text without any explanation or additional content:
+
+"${text}"`)
+		];
+
+		// Send request to Copilot with timeout
+		const model = models[0];
+		const response = await model.sendRequest(messages, {});
+
+		// Collect the response
+		let translatedText = '';
+		for await (const fragment of response.text) {
+			translatedText += fragment;
+		}
+
+		// Clean up the translated text
+		translatedText = translatedText.trim().replace(/^["']|["']$/g, '');
+		
+		return translatedText || null;
+
+	} catch (error) {
+		console.error(`Translation error for ${targetLanguage}:`, error);
+		return null;
+	}
+}
+
+/**
+ * Checks if a key exists in the JSON data
+ */
+async function checkKeyExists(jsonData: any, key: string): Promise<{ exists: boolean, value?: string }> {
+	const keyParts = key.split('.');
+	let tempObj = jsonData;
+	
+	for (let i = 0; i < keyParts.length; i++) {
+		const part = keyParts[i];
+		if (tempObj && typeof tempObj === 'object' && tempObj.hasOwnProperty(part)) {
+			if (i === keyParts.length - 1) {
+				// This is the final key
+				return { exists: true, value: tempObj[part] };
+			} else {
+				tempObj = tempObj[part];
+			}
+		} else {
+			break;
+		}
+	}
+	
+	return { exists: false };
+}
+
+/**
+ * Updates JSON data with a nested key-value pair
+ */
+function updateJsonData(jsonData: any, key: string, value: string): void {
+	const keyParts = key.split('.');
+	let currentObj = jsonData;
+
+	// Navigate/create the nested structure
+	for (let i = 0; i < keyParts.length - 1; i++) {
+		const part = keyParts[i];
+		if (!currentObj[part] || typeof currentObj[part] !== 'object') {
+			currentObj[part] = {};
+		}
+		currentObj = currentObj[part];
+	}
+
+	// Set the final value
+	const finalKey = keyParts[keyParts.length - 1];
+	currentObj[finalKey] = value;
 }
 
 /**
