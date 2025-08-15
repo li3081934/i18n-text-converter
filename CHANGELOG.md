@@ -6,6 +6,15 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 # Change Log
 
+## [0.3.2] - 2025-08-15
+### Optimized
+- 🚀 **Performance Enhancement**: Optimized i18n update logic with separated sync/async operations
+- ⚡ **Immediate Main File Update**: Main configured JSON file now updates synchronously for instant feedback
+- 🔄 **Background Translation**: Other language files are processed asynchronously without blocking user workflow
+- 🧹 **Code Cleanup**: Removed obsolete `updateMultipleI18nFiles` function, streamlined translation logic
+- 📊 **Better Progress Tracking**: Enhanced progress indicators for background translation operations
+- 🎯 **Simplified Translation**: Direct filename-to-language mapping for more efficient Copilot translations
+
 ## [0.3.1] - 2025-08-08
 ### Improved
 - Enhanced JSON parsing with robust error handling

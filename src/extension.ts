@@ -97,18 +97,145 @@ async function updateI18nJsonFile(key: string, value: string): Promise<boolean> 
 	}
 
 	try {
-		// If i18nDirectory is configured, update all JSON files in the directory
-		if (i18nDirectory) {
-			return await updateMultipleI18nFiles(key, value, i18nDirectory, workspaceFolder);
-		} else {
-			// Fallback to single file update
-			return await updateSingleI18nFile(key, value, jsonFilePath, workspaceFolder);
+		// First, update the main configured JSON file synchronously
+		if (jsonFilePath) {
+			const success = await updateSingleI18nFile(key, value, jsonFilePath, workspaceFolder);
+			if (!success) {
+				return false;
+			}
 		}
+
+		// If i18nDirectory is configured, update other files asynchronously with translation
+		if (i18nDirectory) {
+			// Don't await this - let it run in background
+			updateOtherLanguageFiles(key, value, i18nDirectory, jsonFilePath, workspaceFolder);
+		}
+
+		return true;
 	} catch (error) {
 		vscode.window.showErrorMessage(`Error updating i18n files: ${error}`);
 		console.error('Error updating i18n files:', error);
 		return false;
 	}
+}
+
+/**
+ * Updates other language files asynchronously with translation
+ */
+async function updateOtherLanguageFiles(
+	key: string, 
+	originalValue: string, 
+	i18nDirectory: string, 
+	mainFilePath: string,
+	workspaceFolder: vscode.WorkspaceFolder
+): Promise<void> {
+	const directoryPath = path.join(workspaceFolder.uri.fsPath, i18nDirectory);
+
+	if (!fs.existsSync(directoryPath)) {
+		console.warn(`i18n directory not found: ${directoryPath}`);
+		return;
+	}
+
+	// Get all JSON files in the directory
+	const allFiles = fs.readdirSync(directoryPath).filter(file => file.endsWith('.json'));
+	
+	// Exclude the main configured file
+	const mainFileName = mainFilePath ? path.basename(mainFilePath) : '';
+	const filesToUpdate = allFiles.filter(file => file !== mainFileName);
+	
+	if (filesToUpdate.length === 0) {
+		console.log('No additional language files to update');
+		return;
+	}
+
+	console.log(`Found ${filesToUpdate.length} additional language files to update:`, filesToUpdate);
+
+	// Process files asynchronously in background
+	vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: 'Translating to other languages...',
+		cancellable: false
+	}, async (progress) => {
+		const totalFiles = filesToUpdate.length;
+		const results: { file: string, success: boolean, language: string, translation?: string }[] = [];
+
+		for (let i = 0; i < filesToUpdate.length; i++) {
+			const file = filesToUpdate[i];
+			const fileName = path.parse(file).name; // Get filename without extension
+			const filePath = path.join(directoryPath, file);
+
+			progress.report({
+				increment: (i / totalFiles) * 100,
+				message: `Translating to ${fileName}...`
+			});
+
+			try {
+				// Read current JSON content or create empty object
+				let jsonData: any = {};
+				if (fs.existsSync(filePath)) {
+					const fileContent = fs.readFileSync(filePath, 'utf8');
+					try {
+						const parsed = JSON.parse(fileContent);
+						jsonData = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+					} catch (parseError) {
+						console.warn(`JSON parsing failed for ${filePath}, using empty object:`, parseError);
+						jsonData = {};
+					}
+				}
+
+				// Translate the text using filename as language identifier
+				const translatedValue = await translateWithCopilot(originalValue, fileName);
+				const finalValue = translatedValue || originalValue;
+
+				// Update the JSON data
+				updateJsonData(jsonData, key, finalValue);
+
+				// Write back to file
+				const updatedContent = JSON.stringify(jsonData, null, 2);
+				fs.writeFileSync(filePath, updatedContent, 'utf8');
+
+				console.log(`Updated ${file}: ${key} = "${finalValue}"`);
+				results.push({ 
+					file, 
+					success: true, 
+					language: fileName, 
+					translation: finalValue
+				});
+
+			} catch (error) {
+				console.error(`Error updating ${file}:`, error);
+				results.push({ 
+					file, 
+					success: false, 
+					language: fileName
+				});
+			}
+		}
+
+		progress.report({ increment: 100, message: 'Complete!' });
+
+		// Show summary message
+		const successCount = results.filter(r => r.success).length;
+		const failCount = results.length - successCount;
+		
+		let message = `Translation complete: ${successCount} files updated`;
+		if (failCount > 0) {
+			message += `, ${failCount} failed`;
+		}
+		
+		// Show detailed results
+		const details = results.map(r => 
+			r.success 
+				? `✅ ${r.language}: "${r.translation}"` 
+				: `❌ ${r.language}: Failed`
+		).join('\n');
+		
+		vscode.window.showInformationMessage(message, 'Show Details').then(selection => {
+			if (selection === 'Show Details') {
+				vscode.window.showInformationMessage(details);
+			}
+		});
+	});
 }
 
 /**
@@ -168,123 +295,7 @@ async function updateSingleI18nFile(key: string, value: string, jsonFilePath: st
 	}
 }
 
-/**
- * Updates multiple i18n JSON files with translations
- */
-async function updateMultipleI18nFiles(key: string, originalValue: string, i18nDirectory: string, workspaceFolder: vscode.WorkspaceFolder): Promise<boolean> {
-	const directoryPath = path.join(workspaceFolder.uri.fsPath, i18nDirectory);
 
-	if (!fs.existsSync(directoryPath)) {
-		vscode.window.showErrorMessage(`i18n directory not found: ${directoryPath}`);
-		return false;
-	}
-
-	// Get all JSON files in the directory
-	const files = fs.readdirSync(directoryPath).filter(file => file.endsWith('.json'));
-	
-	if (files.length === 0) {
-		vscode.window.showErrorMessage(`No JSON files found in directory: ${directoryPath}`);
-		return false;
-	}
-
-	console.log(`Found ${files.length} JSON files to update:`, files);
-
-	// Show progress for multiple file updates
-	return await vscode.window.withProgress({
-		location: vscode.ProgressLocation.Notification,
-		title: 'Updating i18n files...',
-		cancellable: true
-	}, async (progress, token) => {
-		const totalFiles = files.length;
-		let processedFiles = 0;
-
-		for (const file of files) {
-			if (token.isCancellationRequested) {
-				return false;
-			}
-
-			const fileName = path.parse(file).name; // Get filename without extension
-			const filePath = path.join(directoryPath, file);
-
-			progress.report({
-				increment: (processedFiles / totalFiles) * 100,
-				message: `Processing ${file}...`
-			});
-
-			try {
-				// Read current JSON content or create empty object
-				let jsonData: any = {};
-				if (fs.existsSync(filePath)) {
-					const fileContent = fs.readFileSync(filePath, 'utf8');
-					try {
-						// Try to parse JSON, fallback to empty object if parsing fails or empty
-						const parsed = JSON.parse(fileContent);
-						jsonData = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-					} catch (parseError) {
-						console.warn(`JSON parsing failed for ${filePath}, using empty object:`, parseError);
-						jsonData = {};
-					}
-				}
-
-				// Check if key exists (only for the first file to avoid multiple prompts)
-				if (processedFiles === 0) {
-					const keyExists = await checkKeyExists(jsonData, key);
-					if (keyExists.exists) {
-						const result = await vscode.window.showWarningMessage(
-							`Key "${key}" already exists in multiple files.\n\nDo you want to overwrite in all files?`,
-							{ modal: true },
-							'Yes, Overwrite All',
-							'No, Cancel'
-						);
-
-						if (result !== 'Yes, Overwrite All') {
-							console.log('User cancelled overwrite operation');
-							return false;
-						}
-					}
-				}
-
-				// Translate the text for this language
-				let translatedValue = originalValue;
-				if (fileName !== 'template' && fileName !== 'default') {
-					const translation = await translateWithCopilot(originalValue, fileName);
-					if (translation) {
-						translatedValue = translation;
-					} else {
-						// If translation fails, use original value
-						console.warn(`Translation failed for ${fileName}, using original value`);
-					}
-				}
-
-				// Update the JSON data
-				updateJsonData(jsonData, key, translatedValue);
-
-				// Write back to file
-				const updatedContent = JSON.stringify(jsonData, null, 2);
-				fs.writeFileSync(filePath, updatedContent, 'utf8');
-
-				console.log(`Updated ${file}: ${key} = "${translatedValue}"`);
-				processedFiles++;
-
-			} catch (error) {
-				console.error(`Error updating ${file}:`, error);
-				vscode.window.showWarningMessage(`Failed to update ${file}: ${error}`);
-			}
-		}
-
-		progress.report({ increment: 100, message: 'Complete!' });
-
-		// Reload the main i18n data if there's a main file
-		const config = vscode.workspace.getConfiguration('i18nConverter');
-		const jsonFilePath = config.get<string>('jsonFilePath', '');
-		if (jsonFilePath) {
-			loadI18nJsonFile();
-		}
-
-		vscode.window.showInformationMessage(`Successfully updated ${processedFiles} i18n files`);
-		return true;
-	});
-}
 
 /**
  * Translates text using Copilot API based on target language
@@ -301,31 +312,12 @@ async function translateWithCopilot(text: string, targetLanguage: string): Promi
 			return null;
 		}
 
-		// Map common language codes to full language names
-		const languageMap: { [key: string]: string } = {
-			'en': 'English',
-			'zh': 'Chinese',
-			'zh-cn': 'Chinese (Simplified)',
-			'zh-tw': 'Chinese (Traditional)',
-			'es': 'Spanish',
-			'fr': 'French',
-			'de': 'German',
-			'ja': 'Japanese',
-			'ko': 'Korean',
-			'ru': 'Russian',
-			'it': 'Italian',
-			'pt': 'Portuguese',
-			'ar': 'Arabic',
-			'hi': 'Hindi',
-			'th': 'Thai',
-			'vi': 'Vietnamese'
-		};
-
-		const targetLanguageName = languageMap[targetLanguage.toLowerCase()] || targetLanguage;
+		// Use filename directly as language identifier
+		const languageIdentifier = targetLanguage;
 
 		// Create the translation prompt
 		const messages: vscode.LanguageModelChatMessage[] = [
-			vscode.LanguageModelChatMessage.User(`Please translate the following text to ${targetLanguageName}. Only return the translated text without any explanation or additional content:
+			vscode.LanguageModelChatMessage.User(`Please translate the following text to ${languageIdentifier}. Only return the translated text without any explanation or additional content:
 
 "${text}"`)
 		];
