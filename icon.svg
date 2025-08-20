@@ -1,0 +1,45 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="text-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E0E7FF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="58" fill="url(#bg-gradient)" stroke="#312E81" stroke-width="2"/>
+  
+  <!-- Globe/Earth icon -->
+  <circle cx="64" cy="64" r="35" fill="none" stroke="url(#text-gradient)" stroke-width="2.5"/>
+  
+  <!-- Longitude lines -->
+  <ellipse cx="64" cy="64" rx="35" ry="15" fill="none" stroke="url(#text-gradient)" stroke-width="1.5" opacity="0.8"/>
+  <ellipse cx="64" cy="64" rx="35" ry="25" fill="none" stroke="url(#text-gradient)" stroke-width="1.5" opacity="0.6"/>
+  
+  <!-- Latitude line (equator) -->
+  <line x1="29" y1="64" x2="99" y2="64" stroke="url(#text-gradient)" stroke-width="1.5" opacity="0.8"/>
+  
+  <!-- Vertical meridian -->
+  <line x1="64" y1="29" x2="64" y2="99" stroke="url(#text-gradient)" stroke-width="1.5" opacity="0.8"/>
+  
+  <!-- Language symbols/text -->
+  <text x="45" y="50" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="url(#text-gradient)">A</text>
+  <text x="75" y="50" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="url(#text-gradient)">中</text>
+  <text x="45" y="85" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="url(#text-gradient)">Es</text>
+  <text x="75" y="85" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="url(#text-gradient)">Fr</text>
+  
+  <!-- Translation arrow/conversion indicator -->
+  <path d="M 20 45 L 30 40 L 30 43 L 40 43 L 40 47 L 30 47 L 30 50 Z" fill="#10B981" opacity="0.9"/>
+  <path d="M 108 83 L 98 88 L 98 85 L 88 85 L 88 81 L 98 81 L 98 78 Z" fill="#10B981" opacity="0.9"/>
+  
+  <!-- Small dots for decoration -->
+  <circle cx="25" cy="25" r="2" fill="#FBBF24" opacity="0.8"/>
+  <circle cx="103" cy="25" r="2" fill="#FBBF24" opacity="0.8"/>
+  <circle cx="25" cy="103" r="2" fill="#FBBF24" opacity="0.8"/>
+  <circle cx="103" cy="103" r="2" fill="#FBBF24" opacity="0.8"/>
+</svg>
